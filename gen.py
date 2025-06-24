@@ -94,7 +94,7 @@ def plot_chunks_and_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
                 linewidth=2, edgecolor='black', facecolor='none'
             )
             ax1.add_patch(rect)
-
+            
             # Рамки миничанков 16x16
             for mini_y in [0, 16]:
                 for mini_x in [0, 16]:
@@ -105,8 +105,8 @@ def plot_chunks_and_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
                     )
                     ax1.add_patch(rect_mini)
             #микрочанке
-            for micro_y in range(0, CHUNK_SIZE - MICRO_SIZE + 1, 3):
-                for micro_x in range(0, CHUNK_SIZE - MICRO_SIZE + 1, 3):
+            for micro_y in range(0, CHUNK_SIZE - MICRO_SIZE + 1, MICRO_SIZE):
+                for micro_x in range(0, CHUNK_SIZE - MICRO_SIZE + 1, MICRO_SIZE):
                     rect_micro = patches.Rectangle(
                         (x*CHUNK_SIZE + micro_x - 0.5, y*CHUNK_SIZE + micro_y - 0.5),
                         MICRO_SIZE, MICRO_SIZE,
