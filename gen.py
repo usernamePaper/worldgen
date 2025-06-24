@@ -2,13 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-CHUNK_SIZE = 32
-MICRO_SIZE = 4
-MINI_SIZE = 16
-NUM_CHUNKS_X = 16
-NUM_CHUNKS_Y = 16
+CHUNK_SIZE = 128
+MINI_SIZE = 32
+MICRO_SIZE = int(MINI_SIZE / 2)
+NUM_CHUNKS_X = 8
+NUM_CHUNKS_Y = NUM_CHUNKS_X
 FONTSIZE = 64
-THRESHOLD = 1 #def. 0.1 хз что это
+THRESHOLD = 0.1 #def. 0.1 хз что это
 ATOL = 1 #def. 1 тож хз что это азаза
 
 def generate_chunk(size=CHUNK_SIZE):
@@ -20,14 +20,19 @@ def are_values_similar(values, threshold=THRESHOLD):
     return printavs
 
 def smooth_microchunk(chunk):
-    center = chunk[1,1]
-    if center == np.max(chunk) or center == np.min(chunk):
-        for i in range(3):
-            for j in range(3):
-                if i == 1 and j == 1:
+    size = chunk.shape[0]
+    center_x = size // 2
+    center_y = size // 2
+    center_value = chunk[center_y, center_x]
+
+    if center_value == np.max(chunk) or center_value == np.min(chunk):
+        for i in range(size):
+            for j in range(size):
+                if i == center_y and j == center_x:
                     continue
-                chunk[i,j] = 0.7 * center + 0.3 * chunk[i,j]
+                chunk[i, j] = 0.7 * center_value + 0.3 * chunk[i, j] #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ ВАЖНАЯ ШТУКА эта формула влияет на генерацию. можно менять
     return chunk
+
 
 def smooth_minichunk(chunk):
     centers = chunk[7:9,7:9]
@@ -41,19 +46,23 @@ def smooth_minichunk(chunk):
 def apply_smoothing(chunk):
     size = chunk.shape[0]
 
-    for i in range(0, size-2):
-        for j in range(0, size-2):
-            micro = chunk[i:i+3, j:j+3]
-            micro = smooth_microchunk(micro)
-            chunk[i:i+3, j:j+3] = micro
+    # Микрочанки
+    for i in range(0, size - MICRO_SIZE + 1, MICRO_SIZE):
+        for j in range(0, size - MICRO_SIZE + 1, MICRO_SIZE):
+            micro = chunk[i:i+MICRO_SIZE, j:j+MICRO_SIZE]
+            micro = smooth_microchunk(micro.copy())  # .copy() чтобы не трогать исходный срез напрямую
+            chunk[i:i+MICRO_SIZE, j:j+MICRO_SIZE] = micro
 
-    for i in [0, 16]:
-        for j in [0, 16]:
-            mini = chunk[i:i+16, j:j+16]
-            mini = smooth_minichunk(mini)
-            chunk[i:i+16, j:j+16] = mini
+    # Миничанки
+    for i in range(0, size - MINI_SIZE + 1, MINI_SIZE):
+        for j in range(0, size - MINI_SIZE + 1, MINI_SIZE):
+
+            mini = chunk[i:i+MINI_SIZE, j:j+MINI_SIZE]
+            mini = smooth_minichunk(mini.copy())
+            chunk[i:i+MINI_SIZE, j:j+MINI_SIZE] = mini
 
     return chunk
+
 
 def generate_multiple_chunks(num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
     big_field = np.zeros((CHUNK_SIZE*num_y, CHUNK_SIZE*num_x))
@@ -65,24 +74,29 @@ def generate_multiple_chunks(num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
     return big_field
 
 def compute_minichunk_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
-    # Размеры миничанков в большом поле
-    mini_averages = np.zeros((num_y*2, num_x*2))  # 2 миничанка по 16 в одном чанке 32
-    for cy in range(num_y):
-        for cx in range(num_x):
-            base_y = cy * CHUNK_SIZE
-            base_x = cx * CHUNK_SIZE
-            # В чанке 32x32 4 миничанка 16x16:
-            for my in range(2):
-                for mx in range(2):
-                    mini = big_field[base_y + my*MINI_SIZE: base_y + (my+1)*MINI_SIZE,
-                                     base_x + mx*MINI_SIZE: base_x + (mx+1)*MINI_SIZE]
-                    mini_averages[cy*2 + my, cx*2 + mx] = np.mean(mini)
+    total_height = big_field.shape[0]
+    total_width = big_field.shape[1]
+
+    num_minichunks_y = total_height // MINI_SIZE
+    num_minichunks_x = total_width // MINI_SIZE
+
+    mini_averages = np.zeros((num_minichunks_y, num_minichunks_x))
+
+    for y in range(num_minichunks_y):
+        for x in range(num_minichunks_x):
+            mini = big_field[
+                y * MINI_SIZE : (y + 1) * MINI_SIZE,
+                x * MINI_SIZE : (x + 1) * MINI_SIZE
+            ]
+            mini_averages[y, x] = np.mean(mini)
+    
     return mini_averages
+
 
 def plot_chunks_and_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(num_x*8, num_y*5))
 
-    # Первый график — ландшафт с рамками
+    # == Левая часть: основной ландшафт ==
     im1 = ax1.imshow(big_field, cmap='terrain')
 
     for y in range(num_y):
@@ -95,18 +109,19 @@ def plot_chunks_and_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
             )
             ax1.add_patch(rect)
             
-            # Рамки миничанков 16x16
-            for mini_y in [0, 16]:
-                for mini_x in [0, 16]:
+            # Рамки миничанков
+            for mini_y in range(0, CHUNK_SIZE, MINI_SIZE):
+                for mini_x in range(0, CHUNK_SIZE, MINI_SIZE):
                     rect_mini = patches.Rectangle(
                         (x*CHUNK_SIZE + mini_x - 0.5, y*CHUNK_SIZE + mini_y - 0.5),
                         MINI_SIZE, MINI_SIZE,
                         linewidth=1.5, edgecolor='cyan', facecolor='none', alpha=0.6
                     )
                     ax1.add_patch(rect_mini)
-            #микрочанке
-            for micro_y in range(0, CHUNK_SIZE - MICRO_SIZE + 1, MICRO_SIZE):
-                for micro_x in range(0, CHUNK_SIZE - MICRO_SIZE + 1, MICRO_SIZE):
+
+            # Рамки микрочанков
+            for micro_y in range(0, CHUNK_SIZE, MICRO_SIZE):
+                for micro_x in range(0, CHUNK_SIZE, MICRO_SIZE):
                     rect_micro = patches.Rectangle(
                         (x*CHUNK_SIZE + micro_x - 0.5, y*CHUNK_SIZE + micro_y - 0.5),
                         MICRO_SIZE, MICRO_SIZE,
@@ -114,19 +129,34 @@ def plot_chunks_and_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
                     )
                     ax1.add_patch(rect_micro)
 
-    ax1.set_title(f'{num_x}x{num_y} цвета дискатецка',fontsize= FONTSIZE)
-    cb=fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04, label='Height')
-    cb.ax.tick_params(labelsize=FONTSIZE/1.5)
+    ax1.set_title(f'{num_x}x{num_y} цвета дискатецка', fontsize=FONTSIZE)
+    cb1 = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04, label='Height')
+    cb1.ax.tick_params(labelsize=FONTSIZE / 1.5)
 
-    # Второй график — карта средних значений миничанков
-    mini_avgs = compute_minichunk_averages(big_field, num_x, num_y)
-    im2 = ax2.imshow(mini_avgs, cmap='terrain', interpolation='none')
-    ax2.set_title('среднее значения миничанков (границы синее на соседнем графике)', fontsize= FONTSIZE)
-    cb2=fig.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04, label='Avg Height')
-    cb2.ax.tick_params(labelsize=FONTSIZE/1.5)
+    # == Правая часть: средние миничанки ==
+    total_height = big_field.shape[0]
+    total_width = big_field.shape[1]
+
+    num_minichunks_y = total_height // MINI_SIZE
+    num_minichunks_x = total_width // MINI_SIZE
+
+    mini_averages = np.zeros((num_minichunks_y, num_minichunks_x))
+    for y in range(num_minichunks_y):
+        for x in range(num_minichunks_x):
+            mini = big_field[
+                y * MINI_SIZE : (y + 1) * MINI_SIZE,
+                x * MINI_SIZE : (x + 1) * MINI_SIZE
+            ]
+            mini_averages[y, x] = np.mean(mini)
+
+    im2 = ax2.imshow(mini_averages, cmap='terrain', interpolation='none')
+    ax2.set_title('Средние значения миничанков', fontsize=FONTSIZE)
+    cb2 = fig.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04, label='Avg Height')
+    cb2.ax.tick_params(labelsize=FONTSIZE / 1.5)
 
     plt.tight_layout()
     plt.savefig("allpixels.png", dpi=100)
+
 
 big_field = generate_multiple_chunks()
 plot_chunks_and_averages(big_field)
