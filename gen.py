@@ -1,11 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
+#ИЗНАЧАЛЬНО ГЕНЕРИРУЕТ ОЧЕНЬ БОЛЬШУЮ КАРТИНКУ И ЖРЕТ ОЧЕНЬ МНОГО ПАМЯТИ (оперативной)
 CHUNK_SIZE = 128
 MINI_SIZE = 32
 MICRO_SIZE = int(MINI_SIZE / 2)
-NUM_CHUNKS_X = 8
+NUM_CHUNKS_X = 16
 NUM_CHUNKS_Y = NUM_CHUNKS_X
 FONTSIZE = 64
 THRESHOLD = 0.1 #def. 0.1 хз что это
@@ -30,7 +30,7 @@ def smooth_microchunk(chunk):
             for j in range(size):
                 if i == center_y and j == center_x:
                     continue
-                chunk[i, j] = 0.7 * center_value + 0.3 * chunk[i, j] #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ ВАЖНАЯ ШТУКА эта формула влияет на генерацию. можно менять
+                chunk[i, j] = 0.7 * center_value + 0.7 * chunk[i, j] #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ ВАЖНАЯ ШТУКА эта формула влияет на генерацию. можно менять
     return chunk
 
 
@@ -155,7 +155,7 @@ def plot_chunks_and_averages(big_field, num_x=NUM_CHUNKS_X, num_y=NUM_CHUNKS_Y):
     cb2.ax.tick_params(labelsize=FONTSIZE / 1.5)
 
     plt.tight_layout()
-    plt.savefig("allpixels.png", dpi=100)
+    plt.savefig("allpixels_HIRES.png", dpi=200)
 
 
 big_field = generate_multiple_chunks()
